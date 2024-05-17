@@ -1,21 +1,19 @@
 import { useQuery } from '@tanstack/react-query';
 import { Text, View, ScrollView, Pressable } from 'react-native';
 
-async function fetchAllDoggos() {
+async function fetchGroup() {
     try {
-        const response = await fetch('https://dogapi.dog/api/v2/breeds');
+        const response = await fetch('https://dogapi.dog/api/v2/groups');
         return response.json();
     } catch (err) {
         console.error('Fetch error:', err);
     }
 }
 
-export default function FetchAll({setState}) {
-
-    
+export default function FetchGroup({ setState }) {
     const { isPending, isError, isSuccess, data, error } = useQuery({
         queryKey: ['doggos'],
-        queryFn: fetchAllDoggos,
+        queryFn: fetchGroup,
     });
 
     if (isError) {
@@ -37,26 +35,17 @@ export default function FetchAll({setState}) {
     return (
         <ScrollView>
             <View>
-                {data.data.map((obj) => {
+                {data.data.map((obj)=> {
                     return (
-                        <Pressable
-                            key={obj.id}
-                            onPress={() => setState(obj.id)}
-                        >
+                        <View key={obj.id}>
                             <Text>{obj.attributes.name}</Text>
-                        </Pressable>
-                    );
+                        </View>
+                    )
                 })}
             </View>
             <View>
                 <Pressable onPress={() => setState("")}>
                     <Text>Reset</Text>
-                </Pressable>
-                <Pressable onPress={() => setState("group")}>
-                    <Text>FetchGroup</Text>
-                </Pressable>
-                <Pressable onPress={() => setState("fact")}>
-                    <Text>FetchRandomFact</Text>
                 </Pressable>
             </View>
         </ScrollView>
