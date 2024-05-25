@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, Pressable, TextInput, SafeAreaView } from 'react-native';
+import React, { useState } from 'react';
+import { Text, View, ScrollView, Pressable, TextInput, SafeAreaView,Pick } from 'react-native';
 import { QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { NativeWindStyleSheet } from "nativewind";
-import { Button } from 'react-native-web';
+import { Picker } from '@react-native-picker/picker';
 
 NativeWindStyleSheet.setOutput({
   default: "native",
@@ -46,10 +46,11 @@ const queryClient = new QueryClient();
 function BlogPosts() {
   const queryClient = useQueryClient();
 
-  const [post, setPost] = useState(null);
+  const [post, setPost] = useState({});
   const [editId, setEditId] = useState(null);
   const [editPost, setEditPost] = useState({ title: '', body: '', userId: '', id: '' });
   const [inputPost, setInputPost] = useState({ title: '', body: '', userId: '', id: '' });
+  const [userPick,setUserPick] = useState("pick")
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['posts'],
@@ -73,7 +74,7 @@ function BlogPosts() {
   });
 
   const putMutation = useMutation({
-    mutationKey: ['posts', editPost.id],
+    mutationKey: ['posts', editId],
     mutationFn: async (editPost) => {
       const response = await fetch(`https://jsonplaceholder.typicode.com/posts/${editPost.id}`, {
         method: 'PUT',
@@ -122,14 +123,36 @@ function BlogPosts() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationKey: ['post', post.id],
+    mutationFn: async (post) => {
+      console.log('deleteMut:',post)
+      const response = await fetch(`https://jsonplaceholder.typicode.com/posts/${post.id}`, {
+        method: 'DELETE'
+      });
+      const result = await response.json();
+      console.log('delete fetch', result);
+      return result;
+    },
+    onSuccess: (_,post) => {
+      queryClient.setQueryData(['posts'], (oldData = []) => {
+        return [...oldData.filter((obj) => obj.id !== post.id)];
+      });
+      setPost({})
+    },
+  })
 
-  useEffect(() => {
-    if (data) {
-      console.log('Data updated:', data[0]);
+  const filterMutation = useMutation({
+    mutationKey:['posts'],
+    mutationFn: async (userId) => {
+      console.log('userid mut:',userId)
+      return await fetch(userId !== 'Filter By User' ? `https://jsonplaceholder.typicode.com/posts?userId=${userId}` : 'https://jsonplaceholder.typicode.com/posts').then((response) => response.json())
+    },
+    onSuccess: (filterResults) => {
+      console.log('filterRes:',filterResults)
+      queryClient.setQueryData(['posts'], filterResults);
     }
-    ;
-  }, [data]);
-
+  }) 
 
   const handleInputChange = (prop, value, callback) => {
     //console.log("before:",inputPost)
@@ -160,6 +183,19 @@ function BlogPosts() {
 
   };
 
+  const deletefn = (post) => {
+    console.log('deletfn',post)
+    setPost(post)
+    deleteMutation.mutate(post,data)
+  }
+
+  const pickerOptions = () => {
+    let arr = ['Filter By User']
+    for(let i = 1; i < 11; i++){
+      arr.push(i)
+    }
+    return arr
+  }
 
   if (isError) {
     return <Text>Err...</Text>;
@@ -168,9 +204,9 @@ function BlogPosts() {
     return <Text>Fetching posts...</Text>;
   }
   if (data) {
+    console.log('User pick:',userPick)
     //console.log(data)
     return (
-      <SafeAreaView>
         <ScrollView>
           <View className='flex flex-col justify-center items-center my-3'>
             <TextInput className='border-gray-400 border-solid border-2 w-40' placeholder={"User ID"} onChangeText={(input) => { handleInputChange('userId', input, setInputPost); }} />
@@ -179,7 +215,16 @@ function BlogPosts() {
             <Pressable className='border-solid border-2 border-sky-500'>
               <Text onPress={() => { createMutation.mutate(inputPost); }} > Create Post</Text>
             </Pressable>
-            {post ? <Text>{JSON.stringify(post)}</Text> : <Text>Empty state</Text>}
+            
+            <Picker
+              selectedValue={userPick}
+              onValueChange={(itemValue) =>{
+                setUserPick(itemValue)
+                  filterMutation.mutate(itemValue)
+              }}
+            >{pickerOptions().map((userId) => (
+               <Picker.Item key={userId} label={userId} value={userId}/>
+            )) }</Picker>
             {data.map((post) => {
               return (
                 <View className='border-solid border-green border-2 my-3'
@@ -201,16 +246,17 @@ function BlogPosts() {
                       <Pressable className='border-solid border-2 border-sky-500' onPress={() => startEdit(post)}>
                         <Text>Edit</Text>
                       </Pressable>
-                      <Pressable className='border-solid border-2 border-sky-500' onPress={() => console.log('pressed delete')}>
+                      <View>
+                      <Pressable className='border-solid border-2 border-sky-500' onPress={() => deletefn(post)}>
                         <Text>Delete</Text>
                       </Pressable>
+                      </View>
                     </View>)
                   }
                 </View>);
             })}
           </View>
         </ScrollView>
-      </SafeAreaView>
     );
   }
 
